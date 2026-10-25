@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Portfolio Monitor</title>
+<meta name="description" content="Securities portfolio dashboard for a group treasury: positions, maturities, risk limits and data lineage. Synthetic data.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --surface-2: #f3f2ef;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #767570;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11,11,11,.10);
+  --ring-strong: rgba(11,11,11,.22);
+  --accent: #2a78d6;
+  --accent-soft: rgba(42,120,214,.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --pos: #2a78d6; --neg: #e34948;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --neutral: #898781;
+  --good-ink: #006300; --bad-ink: #b42323;
+  --band: #fff4e5;
+  --shadow: 0 1px 2px rgba(11,11,11,.06), 0 4px 16px rgba(11,11,11,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #96958e;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --ring-strong: rgba(255,255,255,.22);
+    --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --pos: #3987e5; --neg: #e66767;
+    --good-ink: #0ca30c; --bad-ink: #e66767; --band: #2b2216;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #96958e;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --ring-strong: rgba(255,255,255,.22);
+  --accent: #3987e5; --accent-soft: rgba(57,135,229,.16);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --pos: #3987e5; --neg: #e66767;
+  --good-ink: #0ca30c; --bad-ink: #e66767; --band: #2b2216;
+  --shadow: none;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--page); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.num, td.n, th.n, .tick { font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+button { font: inherit; color: inherit; }
+
+/* masthead */
+.mast { background: var(--surface-1); border-bottom: 1px solid var(--ring); position: sticky; top: 0; z-index: 20; }
+.mast-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; }
+.brand { font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
+.brand span { color: var(--text-muted); font-weight: 400; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; margin-top: 10px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  background: none; border: none; cursor: pointer; white-space: nowrap;
+  padding: 9px 12px 11px; color: var(--text-secondary); border-bottom: 2px solid transparent;
+}
+.tab:hover { color: var(--text-primary); }
+.tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); font-weight: 600; }
+.theme { display: inline-flex; border: 1px solid var(--ring-strong); border-radius: 999px; overflow: hidden; flex: none; }
+.theme button { background: none; border: none; padding: 4px 10px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+.theme button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+
+.synth { background: var(--band); border-bottom: 1px solid var(--ring); font-size: 12.5px; color: var(--text-secondary); }
+.synth .wrap { padding-top: 6px; padding-bottom: 6px; }
+.synth b { color: var(--text-primary); font-weight: 600; }
+
+/* snapshot facts */
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 18px 0 6px; font-size: 13px; }
+.fact .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); display: block; }
+.fact .v { color: var(--text-primary); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 12px; border: 1px solid var(--ring-strong); background: var(--surface-1); white-space: nowrap; color: var(--text-primary);
+}
+.pill i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+.linklike { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 2px; }
+
+main { padding-bottom: 48px; }
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -.015em; margin: 14px 0 4px; }
+.lede { color: var(--text-secondary); max-width: 780px; margin-bottom: 16px; }
+.grid { display: grid; gap: 14px; }
+.kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.two { grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr); }
+.half { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.card {
+  background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px;
+  padding: 16px; box-shadow: var(--shadow); min-width: 0;
+}
+.card + .card, .grid + .card, .card + .grid, .grid + .grid { margin-top: 14px; }
+.grid > .card { margin-top: 0; }
+.card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.card-t { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 650; color: var(--text-secondary); }
+.card-t .q {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid var(--ring-strong); font-size: 10px; color: var(--text-muted); margin-left: 6px; cursor: help;
+  text-transform: none; vertical-align: 1px; font-weight: 500;
+}
+.note { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; }
+.kpi .k { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.kpi .v { font-size: 25px; font-weight: 620; letter-spacing: -.02em; margin-top: 4px; white-space: nowrap; }
+.kpi .p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.kpi[data-src] { cursor: help; }
+.mini { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px 18px; }
+.mini .v { font-size: 21px; }
+
+/* segmented control */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.seg button {
+  border: 1px solid var(--ring-strong); background: var(--surface-1); border-radius: 999px;
+  padding: 3px 11px; font-size: 12.5px; cursor: pointer; color: var(--text-secondary);
+}
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+
+/* tables */
+.tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+  font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap;
+}
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+th.n, td.n { text-align: right; }
+td.nw { white-space: nowrap; }
+td.m, span.m { color: var(--text-muted); }
+th.sort { cursor: pointer; user-select: none; }
+th.sort:hover { color: var(--text-primary); }
+th.sort[aria-sort]::after { content: " ↓"; }
+th.sort[aria-sort="ascending"]::after { content: " ↑"; }
+table.risk { table-layout: fixed; min-width: 1000px; }
+table.risk td:nth-child(2) { white-space: normal; }
+tr.total td { font-weight: 600; border-top: 1px solid var(--axis); border-bottom: none; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: 0; }
+.g { color: var(--good-ink); } .r { color: var(--bad-ink); }
+
+/* toolbar */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+select, input[type="search"] {
+  font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--ring-strong); border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+input[type="search"] { width: 190px; }
+.btn {
+  border: 1px solid var(--ring-strong); background: var(--surface-1); border-radius: 6px;
+  padding: 5px 11px; font-size: 13px; cursor: pointer;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.spacer { flex: 1; }
+
+/* charts */
+svg { display: block; overflow: visible; }
+svg text { fill: var(--text-muted); font-size: 11.5px; font-family: inherit; }
+svg .lbl { fill: var(--text-secondary); }
+svg .hit { fill: transparent; cursor: default; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.legend span { display: inline-flex; align-items: center; }
+.donut-wrap { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 20px; align-items: center; }
+
+#tt {
+  position: fixed; z-index: 90; pointer-events: none; max-width: 300px;
+  background: var(--text-primary); color: var(--surface-1); border-radius: 8px; padding: 8px 10px;
+  font-size: 12.5px; line-height: 1.4; opacity: 0; transform: translateY(3px); transition: opacity .1s, transform .1s;
+}
+#tt.on { opacity: 1; transform: none; }
+#tt b { font-weight: 600; }
+#tt .tm { opacity: .72; }
+
+/* risk */
+.bar-track { position: relative; height: 6px; background: var(--surface-2); border-radius: 3px; min-width: 70px; }
+.bar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.bar-limit { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-primary); border-radius: 1px; }
+.src { font-size: 11px; color: var(--text-muted); border: 1px dashed var(--ring-strong); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+
+/* lineage */
+.lineage { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 24px; align-items: stretch; }
+.node { border: 1px solid var(--ring-strong); border-radius: 8px; padding: 12px; background: var(--surface-1); position: relative; }
+.node .t { font-weight: 620; margin-bottom: 4px; }
+.node .d { font-size: 12.5px; color: var(--text-secondary); }
+.node .tag { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.node:not(:last-child)::after {
+  content: "→"; position: absolute; right: -12px; top: 50%; transform: translate(50%, -50%);
+  color: var(--text-muted); font-size: 16px; line-height: 1;
+}
+.node.hl { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.checkrow td:first-child { width: 28px; }
+.ok-ic, .bad-ic { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; color: #fff; font-weight: 700; }
+.ok-ic { background: var(--good); } .bad-ic { background: var(--critical); }
+dl.defs { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0,1fr); gap: 10px 18px; font-size: 13.5px; }
+dl.defs dt { font-weight: 600; }
+dl.defs dd { color: var(--text-secondary); }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+ul.principles { padding-left: 18px; display: grid; gap: 6px; color: var(--text-secondary); }
+ul.principles b { color: var(--text-primary); font-weight: 600; }
+
+.blocked {
+  border: 1px solid var(--critical); background: var(--surface-1); border-radius: 10px; padding: 18px; margin-top: 16px;
+}
+.blocked h2 { font-size: 17px; margin-bottom: 6px; }
+.blocked ul { padding-left: 18px; margin: 8px 0 12px; color: var(--text-secondary); }
+
+footer { border-top: 1px solid var(--ring); padding: 18px 0 28px; font-size: 12.5px; color: var(--text-muted); }
+
+@media (max-width: 1000px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .two, .half { grid-template-columns: minmax(0,1fr); }
+  .lineage { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  .node:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -12px; transform: translate(50%, 50%); }
+}
+@media (max-width: 640px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .kpi .v { font-size: 21px; }
+  .donut-wrap { grid-template-columns: minmax(0,1fr); }
+  .donut-wrap svg { max-width: 240px; margin: 0 auto; }
+  dl.defs { grid-template-columns: minmax(0,1fr); gap: 2px 0; }
+  dl.defs dd { margin-bottom: 8px; }
+  .brand span { display: none; }
+  input[type="search"] { width: 100%; }
+}
+@media print {
+  .mast { position: static; }
+  .tabs, .theme, .toolbar, #tt { display: none !important; }
+}
+</style>
+<script>
+try { var t = localStorage.getItem("tpm-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}
+</script>
+</head>
+<body>
+<header class="mast">
+  <div class="wrap">
+    <div class="mast-top">
+      <div class="brand">Treasury Portfolio Monitor <span>· securities portfolio of a holding group</span></div>
+      <div class="theme" role="group" aria-label="Theme">
+        <button type="button" data-th="auto">Auto</button><button type="button" data-th="light">Light</button><button type="button" data-th="dark">Dark</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Screens">
+      <button class="tab" role="tab" data-tab="overview">Overview</button>
+      <button class="tab" role="tab" data-tab="positions">Positions</button>
+      <button class="tab" role="tab" data-tab="maturities">Maturities</button>
+      <button class="tab" role="tab" data-tab="risk">Risk limits</button>
+      <button class="tab" role="tab" data-tab="how">How it works</button>
+    </nav>
+  </div>
+</header>
+<div class="synth"><div class="wrap"><b>Synthetic data.</b> Every figure, ISIN, entity and broker on this page is invented. The structure, rules and controls are those of a working treasury dashboard.</div></div>
+
+<div id="nojs" class="synth" style="border-top:1px solid var(--ring)"><div class="wrap"><b>Static preview.</b> This viewer does not run JavaScript, so tabs, filters and tooltips are off. Open the file in Chrome, Safari or Edge for the interactive version.</div></div>
+<main class="wrap">
+  <div class="facts" id="facts"><div class="fact"><span class="k">Snapshot</span><span class="v">6 Sep 2026, 23:04</span></div><div class="fact"><span class="k">Reporting currency</span><span class="v">USD · FX as of 6 Sep 2026</span></div><div class="fact"><span class="k">Positions</span><span class="v">15 active · 5 disposed</span></div><div class="fact"><span class="k">Review</span><span class="v"><span data-tip="Last sign-off: snapshot of 5 Sep 2026 by @syn.reviewer at 2026-09-06 09:40:00. A new snapshot needs its own sign-off."><span class="pill"><i style="background:var(--neutral)"></i>Not yet signed off</span></span></span></div><div class="fact"><span class="k">Data checks</span><span class="v"><button class="linklike" data-go="how">10 of 10 passed</button> </span></div></div>
+  <div id="view"><h1>Overview</h1>
+  <p class="lede">State of the portfolio at the last daily price update, used by the finance team and management. Headline figures are read from the model as they are; this page only groups and displays them.</p>
+  <div class="grid kpis">
+    <div class="card kpi" data-src="" data-tip="Current value of securities held. Sold and matured positions are excluded. Source: model."><div class="k">Portfolio value</div><div class="v num">$13,212,614</div><div class="p">at snapshot prices</div></div>
+    <div class="card kpi" data-src="" data-tip="Primary performance measure. Time-weighted: chains closed sub-period returns, so deposits and withdrawals do not distort it. Runs to the last closed month."><div class="k">TWR, year to date</div><div class="v num">3.45%</div><div class="p">2026, chained to 2026-07</div></div>
+    <div class="card kpi" data-src="" data-tip="Coupons/dividends plus revaluation since 1 January, including positions closed this year."><div class="k">Return, year to date</div><div class="v num"><span class="g">+$537,002</span></div><div class="p">interest + revaluation</div></div>
+    <div class="card kpi" data-src="" data-tip="Money-weighted return (XIRR of external cash flows). Shown for reference: it depends on when money was added or withdrawn."><div class="k">MWR, year to date</div><div class="v num">4.15%</div><div class="p">reference, to snapshot date</div></div>
+    <div class="card kpi" data-src="" data-tip="Interest plus revaluation over the full history, including sold and matured securities."><div class="k">Return, since inception</div><div class="v num"><span class="g">+$2,118,701</span></div><div class="p">incl. closed positions</div></div>
+  </div>
+  <section class="card"><div class="card-h"><div class="card-t">Portfolio structure</div></div><div style="margin-bottom:12px"><div class="seg" role="group"><button type="button" data-seg="dim" data-v="asset_class" aria-pressed="true">Asset class</button><button type="button" data-seg="dim" data-v="asset_subclass" aria-pressed="false">Subclass</button><button type="button" data-seg="dim" data-v="currency" aria-pressed="false">Currency</button><button type="button" data-seg="dim" data-v="holder" aria-pressed="false">Legal entity</button><button type="button" data-seg="dim" data-v="broker" aria-pressed="false">Broker</button><button type="button" data-seg="dim" data-v="liquidity_tier" aria-pressed="false">Liquidity tier</button></div></div>
+    <div class="donut-wrap"><svg viewBox="0 0 240 240" width="100%" role="img" aria-label="Structure donut"><path d="M120.64799611200701,12.001943994168002A108,108 0 1 1 119.23011427242109,227.99725587238999L119.44397141897079,197.99801813005942A78,78 0 1 0 120.46799719200506,42.00140399578801Z" fill="var(--s1)" data-tip="&lt;b&gt;Bonds&lt;/b&gt;&lt;br&gt;$6,633,914 · 50.2%"></path><path d="M117.93423373604537,227.98024175627089A108,108 0 0 1 35.257532164165724,53.04692579804424L58.797106563008576,71.64500196525418A78,78 0 0 0 118.50805769825499,197.98573015730676Z" fill="var(--s2)" data-tip="&lt;b&gt;Equity&lt;/b&gt;&lt;br&gt;$4,694,259 · 35.5%"></path><path d="M36.06705115670967,52.034861153164655A108,108 0 0 1 119.35200388799296,12.001943994168002L119.53200280799491,42.00140399578801A78,78 0 0 0 59.38175916873476,70.91406638839669Z" fill="var(--s3)" data-tip="&lt;b&gt;Cash equivalents&lt;/b&gt;&lt;br&gt;$1,884,441 · 14.3%"></path>
+    <text x="120" y="118" text-anchor="middle" style="fill:var(--text-primary);font-size:19px;font-weight:620">$13.2M</text>
+    <text x="120" y="138" text-anchor="middle">15 active positions</text></svg>
+    <div class="tw"><table><thead><tr><th>Asset class</th><th class="n">Value</th><th class="n">Share</th></tr></thead><tbody>
+    <tr><td><span class="sw" style="background:var(--s1)"></span>Bonds</td><td class="n">$6,633,914</td><td class="n">50.2%</td></tr><tr><td><span class="sw" style="background:var(--s2)"></span>Equity</td><td class="n">$4,694,259</td><td class="n">35.5%</td></tr><tr><td><span class="sw" style="background:var(--s3)"></span>Cash equivalents</td><td class="n">$1,884,441</td><td class="n">14.3%</td></tr>
+    <tr class="total"><td>Total</td><td class="n">$13,212,614</td><td class="n">100.0%</td></tr>
+    </tbody></table></div></div>
+    <p class="note">The centre and the total tie to the portfolio value in the model; a mismatch would block the page, not be adjusted.</p></section>
+  <div class="grid two"><section class="card"><div class="card-h"><div class="card-t">Yield &amp; duration<span class="q" data-tip="Weighted by current value. Coverage = share of the portfolio these averages are computed on.">?</span></div></div><div class="mini">
+      <div class="kpi"><div class="k">YTM</div><div class="v num">5.63%</div></div>
+      <div class="kpi"><div class="k">Modified duration</div><div class="v num">1.57 y</div></div>
+      <div class="kpi"><div class="k">Avg maturity</div><div class="v num">1.78 y</div></div>
+      <div class="kpi"><div class="k">Debt part</div><div class="v num">64.5%</div></div>
+    </div><p class="note">Value-weighted over bonds and T-bills; ETFs and equities have no yield to maturity and are excluded.</p></section><section class="card"><div class="card-h"><div class="card-t">Concentration</div></div>
+    <div class="kpi" style="margin-bottom:10px"><div class="k">Top-5 positions</div><div class="v num">46.7%</div></div>
+    <div class="tw"><table><thead><tr><th>Security</th><th>ISIN</th><th>Entity</th><th>Broker</th><th class="n">Value</th><th class="n">Share</th></tr></thead><tbody>
+    <tr><td class="nw">SYNX SHORT ETF</td><td class="nw m">SYN0000000113</td><td class="nw">Holdco A (USD)</td><td class="nw">Broker Three</td><td class="n">$1,425,760</td><td class="n">10.8%</td></tr><tr><td class="nw">SYN SOV 1.75 2027</td><td class="nw m">SYN0000000107</td><td class="nw">Holdco B (EUR)</td><td class="nw">Broker Two</td><td class="n">$1,224,990</td><td class="n">9.3%</td></tr><tr><td class="nw">SYN CORP 5.10 2029</td><td class="nw m">SYN0000000102</td><td class="nw">Holdco A (USD)</td><td class="nw">Broker One</td><td class="n">$1,220,329</td><td class="n">9.2%</td></tr><tr><td class="nw">SYN CORP 3.80 2026</td><td class="nw m">SYN0000000103</td><td class="nw">Holdco B (EUR)</td><td class="nw">Broker Two</td><td class="n">$1,167,663</td><td class="n">8.8%</td></tr><tr><td class="nw">SYN TBILL 2026-12</td><td class="nw m">SYN0000000110</td><td class="nw">Holdco B (EUR)</td><td class="nw">Broker One</td><td class="n">$1,135,737</td><td class="n">8.6%</td></tr>
+    </tbody></table></div><p class="note">Position, issuer and broker limits are on <button class="linklike" data-go="risk">Risk limits</button>.</p></section></div>
+  <div class="grid half"><section class="card"><div class="card-h"><div class="card-t">Period returns<span class="q" data-tip="TWR is the primary measure: it removes the effect of deposits and withdrawals. MWR is kept for reference.">?</span></div></div><div class="kpi" style="margin-bottom:10px"><div class="k">TWR 2026, chained to 2026-07</div><div class="v num">3.45%</div></div>
+    <div class="tw"><table><thead><tr><th></th><th class="n">2024</th><th class="n">2025</th><th class="n">2026-Q1</th><th class="n">2026-Q2</th><th class="n">2026-07</th><th class="n">2026-08</th></tr></thead><tbody>
+    <tr><td class="nw">Total return</td><td class="n">8.12%</td><td class="n">9.54%</td><td class="n">1.42%</td><td class="n">1.55%</td><td class="n">0.48%</td><td class="n"><span class="m" data-tip="Period not closed in the model yet">open</span></td></tr><tr><td class="nw">HPR</td><td class="n">7.90%</td><td class="n">9.31%</td><td class="n">1.39%</td><td class="n">1.51%</td><td class="n">0.46%</td><td class="n"><span class="m" data-tip="Period not closed in the model yet">open</span></td></tr><tr><td class="nw">TWR</td><td class="n">8.05%</td><td class="n">9.47%</td><td class="n">1.41%</td><td class="n">1.53%</td><td class="n">0.47%</td><td class="n"><span class="m" data-tip="Period not closed in the model yet">open</span></td></tr>
+    </tbody></table></div><p class="note">Closed periods only; years, quarters and months are not comparable with each other, so they are not charted together.</p></section><section class="card"><div class="card-h"><div class="card-t">Risk limits</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="pill"><i style="background:var(--good)"></i>19 within limit</span><span class="pill"><i style="background:var(--critical)"></i>4 breached</span><span class="pill"><i style="background:var(--neutral)"></i>2 not measured</span></div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Check</th><th class="n">Limit</th><th class="n">Current</th><th>Severity</th></tr></thead><tbody>
+    <tr><td class="m">2.4</td><td style="min-width:170px">Max exposure to one broker (Broker One)</td><td class="n nw">≤ $5,000,000</td><td class="n nw r">$5,114,976</td><td><span class="pill"><i style="background:var(--serious)"></i>Moderate</span></td></tr><tr><td class="m">3.3</td><td style="min-width:170px">Max single position share</td><td class="n nw">≤ 10.0%</td><td class="n nw r">10.8%</td><td><span class="pill"><i style="background:var(--critical)"></i>Critical</span></td></tr><tr><td class="m">4.3</td><td style="min-width:170px">Tier 1 share (sellable &lt; 30 days)</td><td class="n nw">≥ 60.0%</td><td class="n nw r">57.2%</td><td><span class="pill"><i style="background:var(--serious)"></i>Moderate</span></td></tr><tr><td class="m">6.1</td><td style="min-width:170px">Max single position drawdown</td><td class="n nw">≤ 15.0%</td><td class="n nw r">16.8%</td><td><span class="pill"><i style="background:var(--warning)"></i>Watch</span></td></tr>
+    </tbody></table></div><p class="note"><button class="linklike" data-go="risk">All 25 limits →</button></p></section></div></div>
+</main>
+
+<footer><div class="wrap">
+  Portfolio case by Dmitry Shkolov · Python (pandas) pipeline → JSON snapshot → one HTML file, plain JavaScript and SVG, no external dependencies.
+  Production version: Streamlit app fed by a Google Sheets model through an n8n webhook.
+</div></footer>
+
+<div id="tt" role="tooltip"></div>
+
+<script>
+"use strict";
+try { const n = document.getElementById("nojs"); if (n) n.remove(); } catch (e) {}
+const SNAPSHOT = {"positions":[{"position_state":"active","isin":"SYN0000000101","short_name":"SYN CORP 4.25 2027","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Bonds","asset_subclass":"Corporate","currency":"USD","liquidity_tier":"Tier 1","purchase_date":"2023-02-14","maturity_date":"2027-05-15","has_maturity":true,"units":12728.31,"current_value":811210.85,"portfolio_percent":0.061397,"ytm_current":0.03287,"interest_all_time":117023.66,"capital_gain_all_time":-30339.47,"total_return_all_time":86684.19,"interest_ytd":62909.85,"capital_gain_ytd":15727.46,"total_return_ytd":78637.31,"hpr_all_time":0.103,"years_to_maturity":0.69,"modified_duration":0.67},{"position_state":"active","isin":"SYN0000000102","short_name":"SYN CORP 5.10 2029","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Bonds","asset_subclass":"Corporate","currency":"USD","liquidity_tier":"Tier 1","purchase_date":"2023-06-01","maturity_date":"2029-09-01","has_maturity":true,"units":11142.71,"current_value":1220328.67,"portfolio_percent":0.092361,"ytm_current":0.06708,"interest_all_time":984.47,"capital_gain_all_time":603.38,"total_return_all_time":1587.85,"interest_ytd":-7057.7,"capital_gain_ytd":1366.01,"total_return_ytd":-5691.69,"hpr_all_time":0.0013,"years_to_maturity":2.99,"modified_duration":2.66},{"position_state":"active","isin":"SYN0000000103","short_name":"SYN CORP 3.80 2026","holder":"Holdco B (EUR)","broker":"Broker Two","asset_class":"Bonds","asset_subclass":"Corporate","currency":"EUR","liquidity_tier":"Tier 2","purchase_date":"2024-01-22","maturity_date":"2026-12-10","has_maturity":true,"units":7850.96,"current_value":1167662.51,"portfolio_percent":0.088375,"ytm_current":0.06025,"interest_all_time":121317.92,"capital_gain_all_time":131427.75,"total_return_all_time":252745.67,"interest_ytd":8585.22,"capital_gain_ytd":8248.55,"total_return_ytd":16833.77,"hpr_all_time":0.2439,"years_to_maturity":0.26,"modified_duration":0.25},{"position_state":"active","isin":"SYN0000000104","short_name":"SYN CORP 6.00 2031","holder":"Holdco A (USD)","broker":"Broker Two","asset_class":"Bonds","asset_subclass":"Corporate","currency":"USD","liquidity_tier":"Tier 2","purchase_date":"2022-11-08","maturity_date":"2031-03-20","has_maturity":true,"units":8957.62,"current_value":742135.47,"portfolio_percent":0.056169,"ytm_current":0.03523,"interest_all_time":-50320.28,"capital_gain_all_time":279048.84,"total_return_all_time":228728.56,"interest_ytd":-3724.91,"capital_gain_ytd":-6917.68,"total_return_ytd":-10642.59,"hpr_all_time":0.4939,"years_to_maturity":4.53,"modified_duration":3.89},{"position_state":"active","isin":"SYN0000000105","short_name":"SYN CORP 2.95 2028","holder":"Holdco B (EUR)","broker":"Broker One","asset_class":"Bonds","asset_subclass":"Corporate","currency":"EUR","liquidity_tier":"Tier 2","purchase_date":"2024-03-19","maturity_date":"2028-07-01","has_maturity":true,"units":10183.83,"current_value":507042.2,"portfolio_percent":0.038376,"ytm_current":0.06673,"interest_all_time":-7159.13,"capital_gain_all_time":-2924.15,"total_return_all_time":-10083.28,"interest_ytd":-4133.51,"capital_gain_ytd":27097.47,"total_return_ytd":22963.96,"hpr_all_time":-0.0198,"years_to_maturity":1.82,"modified_duration":1.68},{"position_state":"active","isin":"SYN0000000106","short_name":"SYN SOV 3.50 2030","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Bonds","asset_subclass":"Sovereign","currency":"USD","liquidity_tier":"Tier 1","purchase_date":"2023-09-05","maturity_date":"2030-01-31","has_maturity":true,"units":11833.62,"current_value":691953.56,"portfolio_percent":0.052371,"ytm_current":0.0527,"interest_all_time":8672.84,"capital_gain_all_time":7095.96,"total_return_all_time":15768.8,"interest_ytd":42820.27,"capital_gain_ytd":22058.93,"total_return_ytd":64879.2,"hpr_all_time":0.023,"years_to_maturity":3.4,"modified_duration":3.04},{"position_state":"active","isin":"SYN0000000107","short_name":"SYN SOV 1.75 2027","holder":"Holdco B (EUR)","broker":"Broker Two","asset_class":"Bonds","asset_subclass":"Sovereign","currency":"EUR","liquidity_tier":"Tier 1","purchase_date":null,"maturity_date":"2027-11-15","has_maturity":true,"units":12480.96,"current_value":1224989.52,"portfolio_percent":0.092714,"ytm_current":0.06253,"interest_all_time":358686.45,"capital_gain_all_time":-54714.88,"total_return_all_time":303971.57,"interest_ytd":8500.38,"capital_gain_ytd":10818.66,"total_return_ytd":19319.04,"hpr_all_time":0.2375,"years_to_maturity":1.19,"modified_duration":1.1},{"position_state":"active","isin":"SYN0000000108","short_name":"SYN SOV 4.60 2034","holder":"Holdco A (USD)","broker":"Broker Three","asset_class":"Bonds","asset_subclass":"Sovereign","currency":"USD","liquidity_tier":"Tier 2","purchase_date":"2021-07-30","maturity_date":"2034-06-30","has_maturity":true,"units":6577.53,"current_value":268591.61,"portfolio_percent":0.020328,"ytm_current":0.05111,"interest_all_time":15187.89,"capital_gain_all_time":22781.83,"total_return_all_time":37969.72,"interest_ytd":13563.85,"capital_gain_ytd":9822.09,"total_return_ytd":23385.94,"hpr_all_time":0.1545,"years_to_maturity":7.81,"modified_duration":6.34},{"position_state":"active","isin":"SYN0000000109","short_name":"SYN TBILL 2026-11","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Cash equivalents","asset_subclass":"T-bill","currency":"USD","liquidity_tier":"Tier 1","purchase_date":"2025-04-11","maturity_date":"2026-11-05","has_maturity":true,"units":449.08,"current_value":748704.2,"portfolio_percent":0.056666,"ytm_current":0.05766,"interest_all_time":114236.89,"capital_gain_all_time":8598.48,"total_return_all_time":122835.37,"interest_ytd":3749.04,"capital_gain_ytd":156.21,"total_return_ytd":3905.25,"hpr_all_time":0.166,"years_to_maturity":0.16,"modified_duration":0.16},{"position_state":"active","isin":"SYN0000000110","short_name":"SYN TBILL 2026-12","holder":"Holdco B (EUR)","broker":"Broker One","asset_class":"Cash equivalents","asset_subclass":"T-bill","currency":"EUR","liquidity_tier":"Tier 1","purchase_date":"2025-05-26","maturity_date":"2026-12-18","has_maturity":true,"units":2288.25,"current_value":1135736.51,"portfolio_percent":0.085959,"ytm_current":0.06201,"interest_all_time":58212.65,"capital_gain_all_time":8698.44,"total_return_all_time":66911.09,"interest_ytd":112226.43,"capital_gain_ytd":12469.6,"total_return_ytd":124696.03,"hpr_all_time":0.0594,"years_to_maturity":0.28,"modified_duration":0.27},{"position_state":"active","isin":"SYN0000000111","short_name":"SYNX BROAD ETF","holder":"Holdco A (USD)","broker":"Broker Two","asset_class":"Equity","asset_subclass":"ETF","currency":"USD","liquidity_tier":"Tier 1","purchase_date":"2022-04-04","maturity_date":"2099-12-31","has_maturity":false,"units":14120.42,"current_value":1130024.56,"portfolio_percent":0.085526,"ytm_current":null,"interest_all_time":9110.55,"capital_gain_all_time":173100.49,"total_return_all_time":182211.04,"interest_ytd":2852.93,"capital_gain_ytd":28846.32,"total_return_ytd":31699.25,"hpr_all_time":0.1904},{"position_state":"active","isin":"SYN0000000112","short_name":"SYNX DIVID ETF","holder":"Holdco B (EUR)","broker":"Broker Two","asset_class":"Equity","asset_subclass":"ETF","currency":"EUR","liquidity_tier":"Tier 1","purchase_date":"2023-12-12","maturity_date":"2099-12-31","has_maturity":false,"units":6847.0,"current_value":590313.68,"portfolio_percent":0.044678,"ytm_current":null,"interest_all_time":19269.58,"capital_gain_all_time":141310.22,"total_return_all_time":160579.8,"interest_ytd":-1369.15,"capital_gain_ytd":-7758.54,"total_return_ytd":-9127.69,"hpr_all_time":0.3576},{"position_state":"active","isin":"SYN0000000113","short_name":"SYNX SHORT ETF","holder":"Holdco A (USD)","broker":"Broker Three","asset_class":"Equity","asset_subclass":"ETF","currency":"USD","liquidity_tier":"Tier 2","purchase_date":"2024-08-20","maturity_date":"2099-12-31","has_maturity":false,"units":3802.8,"current_value":1425759.7,"portfolio_percent":0.107909,"ytm_current":null,"interest_all_time":-20889.1,"capital_gain_all_time":160149.75,"total_return_all_time":139260.65,"interest_ytd":4683.2,"capital_gain_ytd":151423.53,"total_return_ytd":156106.73,"hpr_all_time":0.11},{"position_state":"active","isin":"SYN0000000114","short_name":"SYNCO EQ A","holder":"Holdco A (USD)","broker":"Broker Three","asset_class":"Equity","asset_subclass":"Single name","currency":"USD","liquidity_tier":"Tier 3","purchase_date":"2021-10-01","maturity_date":"2099-12-31","has_maturity":false,"units":4339.32,"current_value":763210.64,"portfolio_percent":0.057764,"ytm_current":null,"interest_all_time":4278.78,"capital_gain_all_time":209660.19,"total_return_all_time":213938.97,"interest_ytd":1359.97,"capital_gain_ytd":21306.19,"total_return_ytd":22666.16,"hpr_all_time":0.3865},{"position_state":"active","isin":"SYN0000000115","short_name":"SYNCO EQ B","holder":"Holdco B (EUR)","broker":"Broker Three","asset_class":"Equity","asset_subclass":"Single name","currency":"EUR","liquidity_tier":"Tier 4","purchase_date":"2024-10-15","maturity_date":"2099-12-31","has_maturity":false,"units":585.53,"current_value":784949.94,"portfolio_percent":0.059409,"ytm_current":null,"interest_all_time":-216.76,"capital_gain_all_time":-2492.74,"total_return_all_time":-2709.5,"interest_ytd":-7965.46,"capital_gain_ytd":789.37,"total_return_ytd":-7176.09,"hpr_all_time":-0.0034},{"position_state":"disposed","isin":"SYN0000000201","short_name":"SYN CORP 4.00 2025","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Bonds","asset_subclass":"Corporate","currency":"USD","liquidity_tier":null,"purchase_date":"2022-01-18","maturity_date":"2025-11-14","has_maturity":true,"units":8967.03,"current_value":561994.41,"portfolio_percent":null,"ytm_current":null,"interest_all_time":58714.49,"capital_gain_all_time":20629.42,"total_return_all_time":79343.91,"interest_ytd":0.0,"capital_gain_ytd":0.0,"total_return_ytd":0.0,"hpr_all_time":0.1466},{"position_state":"disposed","isin":"SYN0000000202","short_name":"SYN SOV 2.20 2025","holder":"Holdco B (EUR)","broker":"Broker Two","asset_class":"Bonds","asset_subclass":"Sovereign","currency":"EUR","liquidity_tier":null,"purchase_date":"2021-05-04","maturity_date":"2025-06-30","has_maturity":true,"units":9251.9,"current_value":566447.39,"portfolio_percent":null,"ytm_current":null,"interest_all_time":144552.85,"capital_gain_all_time":-32496.38,"total_return_all_time":112056.47,"interest_ytd":0.0,"capital_gain_ytd":0.0,"total_return_ytd":0.0,"hpr_all_time":0.1871},{"position_state":"disposed","isin":"SYN0000000203","short_name":"SYN TBILL 2026-03","holder":"Holdco A (USD)","broker":"Broker One","asset_class":"Cash equivalents","asset_subclass":"T-bill","currency":"USD","liquidity_tier":null,"purchase_date":"2025-01-09","maturity_date":"2026-03-19","has_maturity":true,"units":10412.02,"current_value":172875.44,"portfolio_percent":null,"ytm_current":null,"interest_all_time":26189.5,"capital_gain_all_time":1378.39,"total_return_all_time":27567.89,"interest_ytd":2199.05,"capital_gain_ytd":191.22,"total_return_ytd":2390.27,"hpr_all_time":0.1607},{"position_state":"disposed","isin":"SYN0000000204","short_name":"SYNX EM ETF","holder":"Holdco A (USD)","broker":"Broker Two","asset_class":"Equity","asset_subclass":"ETF","currency":"USD","liquidity_tier":null,"purchase_date":"2023-03-27","maturity_date":"2026-02-05","has_maturity":false,"units":5278.82,"current_value":376957.17,"portfolio_percent":null,"ytm_current":null,"interest_all_time":5302.99,"capital_gain_all_time":42906.04,"total_return_all_time":48209.03,"interest_ytd":4915.88,"capital_gain_ytd":-678.05,"total_return_ytd":4237.83,"hpr_all_time":0.1443},{"position_state":"disposed","isin":"SYN0000000205","short_name":"SYNCO EQ C","holder":"Holdco B (EUR)","broker":"Broker Three","asset_class":"Equity","asset_subclass":"Single name","currency":"EUR","liquidity_tier":null,"purchase_date":"2022-09-13","maturity_date":"2026-04-22","has_maturity":false,"units":8888.71,"current_value":247988.08,"portfolio_percent":null,"ytm_current":null,"interest_all_time":-10224.61,"capital_gain_all_time":61347.65,"total_return_all_time":51123.04,"interest_ytd":-145.65,"capital_gain_ytd":-1935.05,"total_return_ytd":-2080.7,"hpr_all_time":0.2739}],"risk":[{"metric_no":"1.1","metric_area":"Duration","check":"Modified duration, debt part","direction":"max","unit":"years","limit":3.0,"current":1.571667,"headroom":1.428333,"status":"OK","block_no":"B1","block_name":"MARKET RISK","breach_severity":null,"basis":"calc"},{"metric_no":"1.2","metric_area":"Duration","check":"Weighted average maturity, debt part","direction":"max","unit":"years","limit":3.5,"current":1.778341,"headroom":1.721659,"status":"OK","block_no":"B1","block_name":"MARKET RISK","breach_severity":null,"basis":"calc"},{"metric_no":"1.3","metric_area":"Duration","check":"Share maturing beyond 7 years","direction":"max","unit":"%","limit":0.2,"current":0.020328,"headroom":0.179672,"status":"OK","block_no":"B1","block_name":"MARKET RISK","breach_severity":null,"basis":"calc"},{"metric_no":"1.4","metric_area":"Currency","check":"Non-USD share","direction":"max","unit":"%","limit":0.45,"current":0.40951,"headroom":0.04049,"status":"OK","block_no":"B1","block_name":"MARKET RISK","breach_severity":null,"basis":"calc"},{"metric_no":"2.1","metric_area":"Rating","check":"Sub-investment grade share","direction":"max","unit":"%","limit":0.15,"current":0.113,"headroom":0.037,"status":"OK","block_no":"B2","block_name":"CREDIT & COUNTERPARTY","breach_severity":null,"basis":"model"},{"metric_no":"2.2","metric_area":"Rating","check":"Unrated share","direction":"max","unit":"%","limit":0.05,"current":0.021,"headroom":0.029,"status":"OK","block_no":"B2","block_name":"CREDIT & COUNTERPARTY","breach_severity":null,"basis":"model"},{"metric_no":"2.3","metric_area":"Watchlist","check":"Watchlist share","direction":"max","unit":"%","limit":0.1,"current":null,"headroom":null,"status":"TBU","block_no":"B2","block_name":"CREDIT & COUNTERPARTY","breach_severity":null,"basis":"model"},{"metric_no":"2.4","metric_area":"Broker","check":"Max exposure to one broker (Broker One)","direction":"max","unit":"$","limit":5000000,"current":5114975.99,"headroom":-114975.99,"status":"BREACH","block_no":"B2","block_name":"CREDIT & COUNTERPARTY","breach_severity":"Moderate","basis":"calc"},{"metric_no":"2.5","metric_area":"Broker","check":"Number of brokers","direction":"min","unit":"count","limit":3,"current":3,"headroom":0,"status":"OK","block_no":"B2","block_name":"CREDIT & COUNTERPARTY","breach_severity":null,"basis":"calc"},{"metric_no":"3.1","metric_area":"Issuer","check":"Max single bond issuer share","direction":"max","unit":"%","limit":0.1,"current":0.092714,"headroom":0.007286,"status":"OK","block_no":"B3","block_name":"ASSET ALLOCATION","breach_severity":null,"basis":"calc"},{"metric_no":"3.2","metric_area":"Issuer","check":"Top-5 bond issuers share","direction":"max","unit":"%","limit":0.45,"current":0.391015,"headroom":0.058985,"status":"OK","block_no":"B3","block_name":"ASSET ALLOCATION","breach_severity":null,"basis":"calc"},{"metric_no":"3.3","metric_area":"Position","check":"Max single position share","direction":"max","unit":"%","limit":0.1,"current":0.107909,"headroom":-0.007909,"status":"BREACH","block_no":"B3","block_name":"ASSET ALLOCATION","breach_severity":"Critical","basis":"calc"},{"metric_no":"3.4","metric_area":"Position","check":"Number of active positions","direction":"min","unit":"count","limit":12,"current":15,"headroom":3,"status":"OK","block_no":"B3","block_name":"ASSET ALLOCATION","breach_severity":null,"basis":"calc"},{"metric_no":"3.5","metric_area":"Subclass","check":"Max asset subclass share (Corporate)","direction":"max","unit":"%","limit":0.35,"current":0.336677,"headroom":0.013323,"status":"OK","block_no":"B3","block_name":"ASSET ALLOCATION","breach_severity":null,"basis":"calc"},{"metric_no":"4.1","metric_area":"Tiers","check":"Tier 3–4 (less liquid) share","direction":"max","unit":"%","limit":0.15,"current":0.117173,"headroom":0.032827,"status":"OK","block_no":"B4","block_name":"LIQUIDITY RISK","breach_severity":null,"basis":"calc"},{"metric_no":"4.2","metric_area":"Cash","check":"Cash equivalents share","direction":"min","unit":"%","limit":0.05,"current":0.142624,"headroom":0.092624,"status":"OK","block_no":"B4","block_name":"LIQUIDITY RISK","breach_severity":null,"basis":"calc"},{"metric_no":"4.3","metric_area":"Horizon","check":"Tier 1 share (sellable < 30 days)","direction":"min","unit":"%","limit":0.6,"current":0.571671,"headroom":-0.028329,"status":"BREACH","block_no":"B4","block_name":"LIQUIDITY RISK","breach_severity":"Moderate","basis":"calc"},{"metric_no":"4.4","metric_area":"Settlement","check":"Max unsettled trades exposure","direction":"max","unit":"$","limit":1500000,"current":1180400.0,"headroom":319600.0,"status":"OK","block_no":"B4","block_name":"LIQUIDITY RISK","breach_severity":null,"basis":"model"},{"metric_no":"4.5","metric_area":"Custody","check":"Max share at one broker","direction":"max","unit":"%","limit":0.6,"current":0.387128,"headroom":0.212872,"status":"OK","block_no":"B4","block_name":"LIQUIDITY RISK","breach_severity":null,"basis":"calc"},{"metric_no":"5.1","metric_area":"Commissions","check":"Broker commissions, % of turnover","direction":"max","unit":"%","limit":0.01,"current":0.007,"headroom":0.003,"status":"OK","block_no":"B5","block_name":"COST EFFICIENCY","breach_severity":null,"basis":"model"},{"metric_no":"5.2","metric_area":"Custody","check":"Custody fees, % of assets p.a.","direction":"max","unit":"%","limit":0.006,"current":0.004,"headroom":0.002,"status":"OK","block_no":"B5","block_name":"COST EFFICIENCY","breach_severity":null,"basis":"model"},{"metric_no":"5.3","metric_area":"Spread","check":"Average execution spread","direction":"max","unit":"%","limit":0.004,"current":null,"headroom":null,"status":"TBU","block_no":"B5","block_name":"COST EFFICIENCY","breach_severity":null,"basis":"model"},{"metric_no":"6.1","metric_area":"Position","check":"Max single position drawdown","direction":"max","unit":"%","limit":0.15,"current":0.168,"headroom":-0.018,"status":"BREACH","block_no":"B6","block_name":"STOP-LOSS","breach_severity":"Watch","basis":"model"},{"metric_no":"6.2","metric_area":"Portfolio","check":"Portfolio drawdown from peak","direction":"max","unit":"%","limit":0.1,"current":0.042,"headroom":0.058,"status":"OK","block_no":"B6","block_name":"STOP-LOSS","breach_severity":null,"basis":"model"},{"metric_no":"6.3","metric_area":"Review","check":"Positions under stop-loss review","direction":"max","unit":"count","limit":2,"current":1,"headroom":1,"status":"OK","block_no":"B6","block_name":"STOP-LOSS","breach_severity":null,"basis":"model"}],"meta":[{"last_updated":"2026-09-06 23:04:00","commissions_included":true,"taxes_included":false,"portfolio_value_current":13212613.62,"mwr_ytd":0.0415,"mwr_all_time":0.1873,"total_return_all_time":2118700.84,"positions_count_active":15,"positions_count_disposed":5,"ytd_year":2026,"ytm_weighted_avg":0.0563,"maturity_weighted_years":1.78,"total_return_ytd":537001.98,"reporting_currency":"USD","fx_as_of":"2026-09-06","ytm_coverage_percent":0.6447,"duration_weighted":1.57}],"verification":[{"verified_for":"2026-08-31","verified_by":"@syn.checker","verified_at":"2026-09-01 10:15:00"},{"verified_for":"2026-09-05","verified_by":"@syn.reviewer","verified_at":"2026-09-06 09:40:00"}],"returns":{"periods":["2024","2025","2026-Q1","2026-Q2","2026-07","2026-08"],"rows":[{"metric":"Total return","2024":0.0812,"2025":0.0954,"2026-Q1":0.0142,"2026-Q2":0.0155,"2026-07":0.0048,"2026-08":null},{"metric":"HPR","2024":0.079,"2025":0.0931,"2026-Q1":0.0139,"2026-Q2":0.0151,"2026-07":0.0046,"2026-08":null},{"metric":"TWR","2024":0.0805,"2025":0.0947,"2026-Q1":0.0141,"2026-Q2":0.0153,"2026-07":0.0047,"2026-08":null}]},"raw_headers_sample":["'position_state'","'isin '","' short_name'","'holder\\xa0'","'broker'","'asset_class\\xa0'"],"raw_header_issues":23};
+
+/* ------------------------------------------------------------------ format */
+const MINUS = "−";
+const nf0 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const sign = (x, s) => (x < 0 ? MINUS + s : s);
+const money = (x) => x == null ? "—" : sign(x, "$" + nf0.format(Math.abs(Math.round(x))));
+const moneyM = (x) => x == null ? "—" : sign(x, "$" + (Math.abs(x) / 1e6).toFixed(Math.abs(x) >= 1e7 ? 1 : 2) + "M");
+const moneyK = (x) => Math.abs(x) >= 1e6 ? moneyM(x) : sign(x, "$" + Math.round(Math.abs(x) / 1e3) + "K");
+const pct = (x, d = 1) => x == null ? "—" : sign(x, (Math.abs(x) * 100).toFixed(d) + "%");
+const yrs = (x) => x == null ? "—" : sign(x, Math.abs(x).toFixed(2) + " y");
+const int = (x) => x == null ? "—" : nf0.format(x);
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const dt = (s) => { if (!s) return "—"; const d = new Date(s.slice(0,10) + "T00:00:00"); return d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear(); };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const signed = (x, f) => x == null ? '<span class="m">—</span>' : `<span class="${x < 0 ? "r" : x > 0 ? "g" : ""}">${x > 0 ? "+" : ""}${f(x)}</span>`;
+
+/* ------------------------------------------------------------------- state */
+const DEFECTS = {
+  none: null,
+  row: { label: "Export formula lost one row", apply: (d) => { d.positions.splice(4, 1); } },
+  ref: { label: "Source column deleted → #REF!", apply: (d) => { d.positions[2].current_value = "#REF!"; } },
+  enum: { label: "Unknown status in risk sheet", apply: (d) => { d.risk[7].status = "Breach?"; } },
+};
+const state = { tab: "overview", dim: "asset_class", posState: "active", filters: { asset_class: "", holder: "", broker: "" },
+  q: "", sort: { key: "current_value", desc: true }, riskOnlyBreaches: false, defect: "none" };
+
+let D, M, CHECKS;
+function loadData() {
+  D = JSON.parse(JSON.stringify(SNAPSHOT));
+  if (state.defect !== "none") DEFECTS[state.defect].apply(D);
+  M = D.meta[0] || {};
+  CHECKS = runChecks(D);
+}
+const ASOF = () => new Date(M.last_updated.slice(0, 10) + "T00:00:00");
+const active = () => D.positions.filter((p) => p.position_state === "active");
+const disposed = () => D.positions.filter((p) => p.position_state === "disposed");
+
+/* ------------------------------------------------------------ integrity */
+function runChecks(d) {
+  const meta = d.meta;
+  const m = meta[0] || {};
+  const act = d.positions.filter((p) => p.position_state === "active");
+  const dis = d.positions.filter((p) => p.position_state === "disposed");
+  const ERR = /^#(REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|ERROR!)/;
+  const errCells = [];
+  for (const [sheet, rows] of [["positions", d.positions], ["risk", d.risk], ["meta", meta]])
+    rows.forEach((r, i) => Object.entries(r).forEach(([k, v]) => { if (typeof v === "string" && ERR.test(v)) errCells.push(`${sheet} row ${i + 1}, ${k} = ${v}`); }));
+  const enums = { position_state: ["active", "disposed"], status: ["OK", "BREACH", "TBU"], unit: ["%", "years", "$", "count"], breach_severity: ["Critical", "Moderate", "Watch", null] };
+  const badEnum = [];
+  d.positions.forEach((p) => { if (!enums.position_state.includes(p.position_state)) badEnum.push(`position_state “${p.position_state}”`); });
+  d.risk.forEach((r) => ["status", "unit", "breach_severity"].forEach((k) => { if (!enums[k].includes(r[k])) badEnum.push(`${k} “${r[k]}” (metric ${r.metric_no})`); }));
+  const isins = d.positions.map((p) => p.isin);
+  const missingId = d.positions.filter((p) => !p.isin || !p.position_state).length;
+  const dupIsin = isins.filter((x, i) => x && isins.indexOf(x) !== i);
+  const numeric = act.every((p) => typeof p.current_value === "number");
+  const sumAct = numeric ? act.reduce((s, p) => s + p.current_value, 0) : NaN;
+  const tieRows = d.positions.filter((p) => [["interest_ytd","capital_gain_ytd","total_return_ytd"],["interest_all_time","capital_gain_all_time","total_return_all_time"]]
+    .some(([a, b, t]) => p[a] != null && p[b] != null && Math.abs(p[a] + p[b] - p[t]) > 0.011));
+  const shareSum = act.reduce((s, p) => s + (p.portfolio_percent || 0), 0);
+  return [
+    { id: "count_active", t: "Active positions match the model counter", ok: act.length === m.positions_count_active,
+      why: "A formula that silently drops a row would show half a portfolio as the whole one.", got: `${act.length} rows vs counter ${m.positions_count_active}` },
+    { id: "count_disposed", t: "Disposed positions match the model counter", ok: dis.length === m.positions_count_disposed,
+      why: "Same guard for the closed book.", got: `${dis.length} rows vs counter ${m.positions_count_disposed}` },
+    { id: "risk_rows", t: "Risk sheet has exactly 25 metrics", ok: d.risk.length === 25,
+      why: "The limit framework is fixed at 6 blocks / 25 metrics; any other count is an export defect.", got: `${d.risk.length} rows` },
+    { id: "meta_one", t: "Snapshot header is one row with a timestamp", ok: meta.length === 1 && !!m.last_updated,
+      why: "Two header rows means nobody knows which one is real; no timestamp means no version for the cache.", got: `${meta.length} row(s)` },
+    { id: "formula_err", t: "No formula errors in any cell", ok: errCells.length === 0,
+      why: "A deleted or moved source column turns into #REF! downstream.", got: errCells.length ? errCells.join("; ") : "none found" },
+    { id: "enums", t: "Closed lists hold only allowed values", ok: badEnum.length === 0,
+      why: "State, status, unit and severity drive colour and grouping; an unknown value would be mis-rendered.", got: badEnum.length ? badEnum.join("; ") : "all valid" },
+    { id: "ids", t: "Every position has a state and a unique ISIN", ok: missingId === 0 && dupIsin.length === 0,
+      why: "The ISIN is the row identity used to catch lost or doubled rows.", got: missingId || dupIsin.length ? `${missingId} missing, duplicates: ${dupIsin.join(", ") || "none"}` : "20 unique" },
+    { id: "tie_value", t: "Sum of active positions ties to portfolio value", ok: numeric && Math.abs(sumAct - m.portfolio_value_current) < 1,
+      why: "The headline number and the position list must be the same population.", got: numeric ? `${money(sumAct)} vs ${money(m.portfolio_value_current)}` : "non-numeric value in list" },
+    { id: "tie_components", t: "Interest + revaluation = total return, every row", ok: tieRows.length === 0,
+      why: "Components and totals are separate model columns; they must reconcile row by row.", got: tieRows.length ? `${tieRows.length} rows off` : "all rows reconcile" },
+    { id: "tie_share", t: "Position shares add up to 100%", ok: Math.abs(shareSum - 1) < 0.0005,
+      why: "Shares are read from the model, not recomputed; their sum is an independent check.", got: pct(shareSum, 2) },
+  ];
+}
+const checksOk = () => CHECKS.every((c) => c.ok);
+
+/* ------------------------------------------------------------- tooltips */
+const tt = document.getElementById("tt");
+function showTip(e, html) {
+  tt.innerHTML = html; tt.classList.add("on");
+  const r = tt.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tt.style.left = Math.max(8, x) + "px"; tt.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => tt.classList.remove("on");
+document.addEventListener("mousemove", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (el) showTip(e, el.getAttribute("data-tip")); else hideTip();
+});
+document.addEventListener("touchstart", (e) => {
+  const el = e.target.closest("[data-tip]");
+  if (el) { const t = e.touches[0]; showTip({ clientX: t.clientX, clientY: t.clientY }, el.getAttribute("data-tip")); } else hideTip();
+}, { passive: true });
+const tip = (html) => `data-tip="${esc(html)}"`;
+const q = (text) => `<span class="q" ${tip(esc(text))}>?</span>`;
+
+/* ---------------------------------------------------------------- charts */
+const SERIES = ["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)","var(--s7)","var(--s8)"];
+
+function donut(items, centerTop, centerBottom) {
+  const size = 240, r = 108, w = 30, cx = size / 2, cy = size / 2;
+  const total = items.reduce((s, i) => s + i.value, 0);
+  let a0 = -Math.PI / 2;
+  const gap = items.length > 1 ? 0.012 : 0;
+  const paths = items.map((it) => {
+    const a = (it.value / total) * Math.PI * 2;
+    const s = a0 + gap / 2, e = a0 + a - gap / 2; a0 += a;
+    const ro = r, ri = r - w, large = e - s > Math.PI ? 1 : 0;
+    const p = (rad, ang) => `${cx + rad * Math.cos(ang)},${cy + rad * Math.sin(ang)}`;
+    const d = `M${p(ro, s)}A${ro},${ro} 0 ${large} 1 ${p(ro, e)}L${p(ri, e)}A${ri},${ri} 0 ${large} 0 ${p(ri, s)}Z`;
+    return `<path d="${d}" fill="${it.color}" ${tip(`<b>${esc(it.label)}</b><br>${money(it.value)} · ${pct(it.value / total)}`)}/>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="100%" role="img" aria-label="Structure donut">${paths}
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" style="fill:var(--text-primary);font-size:19px;font-weight:620">${centerTop}</text>
+    <text x="${cx}" y="${cy + 18}" text-anchor="middle">${centerBottom}</text></svg>`;
+}
+
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+
+/* vertical bars: [{label, sub?, value, color?, tip}] */
+function vbars(items, { height = 240, fmt = moneyK, color = "var(--s1)" } = {}) {
+  const W = 1160, padL = 56, padB = items.some((i) => i.sub) ? 38 : 24, padT = 16, H = height;
+  const step = niceMax(Math.max(...items.map((i) => i.value), 0) / 4);
+  const max = step * Math.max(1, Math.ceil(Math.max(...items.map((i) => i.value), 0) / step));
+  const min = Math.min(0, ...items.map((i) => i.value));
+  const lo = min < 0 ? -step * Math.ceil(-min / step) : 0;
+  const y = (v) => padT + (H - padT - padB) * (1 - (v - lo) / (max - lo));
+  const n = items.length, slot = (W - padL) / n, bw = Math.min(46, slot * 0.62);
+  const ticks = []; for (let t = lo; t <= max + step / 2; t += step) ticks.push(t);
+  let g = ticks.map((t) => `<line x1="${padL}" x2="${W}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)"/>
+    <text class="tick" x="${padL - 8}" y="${y(t) + 4}" text-anchor="end">${fmt(t)}</text>`).join("");
+  g += `<line x1="${padL}" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  items.forEach((it, i) => {
+    const x = padL + slot * i + (slot - bw) / 2;
+    const y0 = y(0), y1 = y(it.value), top = Math.min(y0, y1), h = Math.max(1, Math.abs(y1 - y0));
+    const rr = Math.min(4, h / 2), fill = it.color || color;
+    const d = it.value >= 0
+      ? `M${x},${y0}V${top + rr}Q${x},${top} ${x + rr},${top}H${x + bw - rr}Q${x + bw},${top} ${x + bw},${top + rr}V${y0}Z`
+      : `M${x},${y0}V${top + h - rr}Q${x},${top + h} ${x + rr},${top + h}H${x + bw - rr}Q${x + bw},${top + h} ${x + bw},${top + h - rr}V${y0}Z`;
+    g += `<path d="${d}" fill="${fill}"/>`;
+    g += `<rect class="hit" x="${padL + slot * i}" y="${padT}" width="${slot}" height="${H - padT - padB}" ${tip(it.tip)}/>`;
+    g += `<text x="${x + bw / 2}" y="${H - padB + 15}" text-anchor="middle" class="lbl">${esc(it.label)}</text>`;
+    if (it.sub) g += `<text x="${x + bw / 2}" y="${H - padB + 29}" text-anchor="middle">${esc(it.sub)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
+}
+
+/* horizontal diverging bars: [{label, value, tip}] */
+function hbars(items, { fmt = moneyK } = {}) {
+  const row = 26, W = 1160, labW = 170, padR = 70, H = items.length * row + 22;
+  const hi = niceMax(Math.max(...items.map((i) => i.value), 0));
+  const negMax = Math.max(...items.map((i) => -i.value), 0);
+  const hasNeg = negMax > 0;
+  const lo = hasNeg ? -Math.max(niceMax(negMax), hi * 0.15) : 0;
+  const x = (v) => labW + (W - labW - padR) * ((v - lo) / (hi - lo));
+  let g = "";
+  [...new Set([lo, 0, hi / 2, hi])].forEach((t) => {
+    g += `<line x1="${x(t)}" x2="${x(t)}" y1="0" y2="${H - 20}" stroke="var(--grid)"/>
+      <text class="tick" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fmt(t)}</text>`;
+  });
+  g += `<line x1="${x(0)}" x2="${x(0)}" y1="0" y2="${H - 20}" stroke="var(--axis)"/>`;
+  items.forEach((it, i) => {
+    const yy = i * row + 5, bh = row - 10, x0 = x(0), x1 = x(it.value);
+    const left = Math.min(x0, x1), w = Math.max(1, Math.abs(x1 - x0)), rr = Math.min(4, w / 2, bh / 2);
+    const d = it.value >= 0
+      ? `M${left},${yy}H${left + w - rr}Q${left + w},${yy} ${left + w},${yy + rr}V${yy + bh - rr}Q${left + w},${yy + bh} ${left + w - rr},${yy + bh}H${left}Z`
+      : `M${left + w},${yy}H${left + rr}Q${left},${yy} ${left},${yy + rr}V${yy + bh - rr}Q${left},${yy + bh} ${left + rr},${yy + bh}H${left + w}Z`;
+    g += `<path d="${d}" fill="${it.value < 0 ? "var(--neg)" : "var(--pos)"}"/>`;
+    g += `<text x="${labW - 10}" y="${yy + bh / 2 + 4}" text-anchor="end" class="lbl">${esc(it.label)}</text>`;
+    g += `<text class="tick" x="${it.value < 0 ? left - 6 : left + w + 6}" y="${yy + bh / 2 + 4}" text-anchor="${it.value < 0 ? "end" : "start"}">${fmt(it.value)}</text>`;
+    g += `<rect class="hit" x="0" y="${i * row}" width="${W}" height="${row}" ${tip(it.tip)}/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">${g}</svg>`;
+}
+
+/* ------------------------------------------------------------ common bits */
+const DIMS = [
+  ["asset_class", "Asset class"], ["asset_subclass", "Subclass"], ["currency", "Currency"],
+  ["holder", "Legal entity"], ["broker", "Broker"], ["liquidity_tier", "Liquidity tier"],
+];
+const TIER_LABELS = { "Tier 1": "sellable < 30 days", "Tier 2": "1–12 months", "Tier 3": "12–18 months", "Tier 4": "> 18 months" };
+const card = (title, body, help, right = "") =>
+  `<section class="card"><div class="card-h"><div class="card-t">${title}${help ? q(help) : ""}</div>${right}</div>${body}</section>`;
+const kpi = (k, v, p, src) => `<div class="card kpi" ${src ? `data-src ${tip(src)}` : ""}><div class="k">${k}</div><div class="v num">${v}</div><div class="p">${p}</div></div>`;
+const seg = (name, opts, cur) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-seg="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div>`;
+
+function groupBy(rows, key) {
+  const m = new Map();
+  rows.forEach((r) => m.set(r[key], (m.get(r[key]) || 0) + r.current_value));
+  return [...m.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+}
+function colorMap(key) {
+  // colour follows the entity: order fixed by value over the whole active book
+  const labels = groupBy(SNAPSHOT.positions.filter((p) => p.position_state === "active"), key).map((g) => g.label);
+  return Object.fromEntries(labels.map((l, i) => [l, SERIES[i % SERIES.length]]));
+}
+const statusColor = { OK: "var(--good)", BREACH: "var(--critical)", TBU: "var(--neutral)" };
+const sevColor = { Critical: "var(--critical)", Moderate: "var(--serious)", Watch: "var(--warning)" };
+const pillS = (text, color) => `<span class="pill"><i style="background:${color}"></i>${esc(text)}</span>`;
+
+function renderFacts() {
+  const v = D.verification.filter((r) => r.verified_for).sort((a, b) => a.verified_for < b.verified_for ? 1 : -1)[0];
+  const snapDate = M.last_updated ? M.last_updated.slice(0, 10) : "";
+  const verified = v && v.verified_for === snapDate;
+  const passed = CHECKS.filter((c) => c.ok).length;
+  document.getElementById("facts").innerHTML = [
+    ["Snapshot", M.last_updated ? `${dt(M.last_updated)}, ${M.last_updated.slice(11, 16)}` : "—"],
+    ["Reporting currency", `${esc(M.reporting_currency)} · FX as of ${dt(M.fx_as_of)}`],
+    ["Positions", `${int(active().length)} active · ${int(disposed().length)} disposed`],
+    ["Review", verified ? pillS("Verified for this snapshot", "var(--good)") :
+      `<span ${tip(v ? `Last sign-off: snapshot of ${dt(v.verified_for)} by ${esc(v.verified_by)} at ${esc(v.verified_at)}. A new snapshot needs its own sign-off.` : "No sign-off on record.")}>${pillS("Not yet signed off", "var(--neutral)")}</span>`],
+    ["Data checks", `<button class="linklike" data-go="how">${passed} of ${CHECKS.length} passed</button> ${checksOk() ? "" : pillS("data withheld", "var(--critical)")}`],
+  ].map(([k, v]) => `<div class="fact"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
+}
+
+function blockedView() {
+  const failed = CHECKS.filter((c) => !c.ok);
+  return `<div class="blocked">
+    <h2>Data withheld: the snapshot failed ${failed.length} integrity check${failed.length > 1 ? "s" : ""}</h2>
+    <p class="lede" style="margin:0">Showing part of a portfolio as if it were the whole one is worse than showing nothing. Fix the source, then refresh.</p>
+    <ul>${failed.map((c) => `<li><b>${esc(c.t)}</b>: ${esc(c.got)}</li>`).join("")}</ul>
+    <button class="btn primary" data-defect="none">Restore clean snapshot</button>
+    <button class="btn" data-go="how">Open the checks</button>
+  </div>`;
+}
+
+/* ---------------------------------------------------------------- OVERVIEW */
+function viewOverview() {
+  const act = active(), total = M.portfolio_value_current;
+  const cmap = colorMap(state.dim);
+  const groups = groupBy(act, state.dim).map((g) => ({ ...g, color: cmap[g.label] }));
+  const dimLabel = DIMS.find((d) => d[0] === state.dim)[1];
+  const fmtLabel = (l) => state.dim === "liquidity_tier" && TIER_LABELS[l] ? `${l} · ${TIER_LABELS[l]}` : l;
+  const top = [...act].sort((a, b) => b.current_value - a.current_value).slice(0, 5);
+  const top5 = top.reduce((s, p) => s + p.current_value, 0) / total;
+  const breaches = D.risk.filter((r) => r.status === "BREACH");
+  const tbu = D.risk.filter((r) => r.status === "TBU").length;
+  const ret = D.returns;
+  const twr = ret.rows.find((r) => r.metric === "TWR");
+
+  const structure = `<div style="margin-bottom:12px">${seg("dim", DIMS, state.dim)}</div>
+    <div class="donut-wrap">${donut(groups.map((g) => ({ ...g, label: fmtLabel(g.label) })), moneyM(total), `${act.length} active positions`)}
+    <div class="tw"><table><thead><tr><th>${dimLabel}</th><th class="n">Value</th><th class="n">Share</th></tr></thead><tbody>
+    ${groups.map((g) => `<tr><td><span class="sw" style="background:${g.color}"></span>${esc(fmtLabel(g.label))}</td><td class="n">${money(g.value)}</td><td class="n">${pct(g.value / total)}</td></tr>`).join("")}
+    <tr class="total"><td>Total</td><td class="n">${money(groups.reduce((s, g) => s + g.value, 0))}</td><td class="n">100.0%</td></tr>
+    </tbody></table></div></div>
+    <p class="note">The centre and the total tie to the portfolio value in the model; a mismatch would block the page, not be adjusted.</p>`;
+
+  const yieldCard = card("Yield & duration", `<div class="mini">
+      <div class="kpi"><div class="k">YTM</div><div class="v num">${pct(M.ytm_weighted_avg, 2)}</div></div>
+      <div class="kpi"><div class="k">Modified duration</div><div class="v num">${yrs(M.duration_weighted)}</div></div>
+      <div class="kpi"><div class="k">Avg maturity</div><div class="v num">${yrs(M.maturity_weighted_years)}</div></div>
+      <div class="kpi"><div class="k">Debt part</div><div class="v num">${pct(M.ytm_coverage_percent)}</div></div>
+    </div><p class="note">Value-weighted over bonds and T-bills; ETFs and equities have no yield to maturity and are excluded.</p>`,
+    "Weighted by current value. Coverage = share of the portfolio these averages are computed on.");
+
+  const concCard = card("Concentration", `
+    <div class="kpi" style="margin-bottom:10px"><div class="k">Top-5 positions</div><div class="v num">${pct(top5)}</div></div>
+    <div class="tw"><table><thead><tr><th>Security</th><th>ISIN</th><th>Entity</th><th>Broker</th><th class="n">Value</th><th class="n">Share</th></tr></thead><tbody>
+    ${top.map((p) => `<tr><td class="nw">${esc(p.short_name)}</td><td class="nw m">${esc(p.isin)}</td><td class="nw">${esc(p.holder)}</td><td class="nw">${esc(p.broker)}</td><td class="n">${money(p.current_value)}</td><td class="n">${pct(p.current_value / total)}</td></tr>`).join("")}
+    </tbody></table></div><p class="note">Position, issuer and broker limits are on <button class="linklike" data-go="risk">Risk limits</button>.</p>`);
+
+  const chained = (r) => ret.periods.filter((p) => p.startsWith(String(M.ytd_year)) && r[p] != null).reduce((acc, p) => acc * (1 + r[p]), 1) - 1;
+  const lastClosed = [...ret.periods].reverse().find((p) => twr[p] != null);
+  const perfCard = card("Period returns", `<div class="kpi" style="margin-bottom:10px"><div class="k">TWR ${M.ytd_year}, chained to ${lastClosed}</div><div class="v num">${pct(chained(twr), 2)}</div></div>
+    <div class="tw"><table><thead><tr><th></th>${ret.periods.map((p) => `<th class="n">${p}</th>`).join("")}</tr></thead><tbody>
+    ${ret.rows.map((r) => `<tr><td class="nw">${r.metric}</td>${ret.periods.map((p) => `<td class="n">${r[p] == null ? '<span class="m" ' + tip("Period not closed in the model yet") + ">open</span>" : pct(r[p], 2)}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div><p class="note">Closed periods only; years, quarters and months are not comparable with each other, so they are not charted together.</p>`,
+    "TWR is the primary measure: it removes the effect of deposits and withdrawals. MWR is kept for reference.");
+
+  const riskCard = card("Risk limits", `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${pillS(`${D.risk.length - breaches.length - tbu} within limit`, "var(--good)")}${pillS(`${breaches.length} breached`, "var(--critical)")}${pillS(`${tbu} not measured`, "var(--neutral)")}</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Check</th><th class="n">Limit</th><th class="n">Current</th><th>Severity</th></tr></thead><tbody>
+    ${breaches.map((r) => `<tr><td class="m">${r.metric_no}</td><td style="min-width:170px">${esc(r.check)}</td><td class="n nw">${r.direction === "min" ? "≥ " : "≤ "}${fmtRisk(r.limit, r.unit)}</td><td class="n nw r">${fmtRisk(r.current, r.unit)}</td><td>${pillS(r.breach_severity, sevColor[r.breach_severity])}</td></tr>`).join("")}
+    </tbody></table></div><p class="note"><button class="linklike" data-go="risk">All 25 limits →</button></p>`);
+
+  const twrYtd = chained(twr);
+  return `<h1>Overview</h1>
+  <p class="lede">State of the portfolio at the last daily price update, used by the finance team and management. Headline figures are read from the model as they are; this page only groups and displays them.</p>
+  <div class="grid kpis">
+    ${kpi("Portfolio value", money(total), "at snapshot prices", "Current value of securities held. Sold and matured positions are excluded. Source: model.")}
+    ${kpi("TWR, year to date", pct(twrYtd, 2), `${M.ytd_year}, chained to ${lastClosed}`, "Primary performance measure. Time-weighted: chains closed sub-period returns, so deposits and withdrawals do not distort it. Runs to the last closed month.")}
+    ${kpi("Return, year to date", signed(M.total_return_ytd, money), "interest + revaluation", "Coupons/dividends plus revaluation since 1 January, including positions closed this year.")}
+    ${kpi("MWR, year to date", pct(M.mwr_ytd, 2), "reference, to snapshot date", "Money-weighted return (XIRR of external cash flows). Shown for reference: it depends on when money was added or withdrawn.")}
+    ${kpi("Return, since inception", signed(M.total_return_all_time, money), "incl. closed positions", "Interest plus revaluation over the full history, including sold and matured securities.")}
+  </div>
+  ${card("Portfolio structure", structure)}
+  <div class="grid two">${yieldCard}${concCard}</div>
+  <div class="grid half">${perfCard}${riskCard}</div>`;
+}
+
+/* --------------------------------------------------------------- POSITIONS */
+const COLS = {
+  active: [
+    ["short_name", "Security", "sec"], ["holder", "Entity", "t"], ["broker", "Broker", "t"],
+    ["asset_subclass", "Type", "t"], ["currency", "Ccy", "t"], ["liquidity_tier", "Tier", "t"],
+    ["maturity_date", "Maturity", "date"], ["current_value", "Value", "money"], ["portfolio_percent", "Share", "pct"],
+    ["ytm_current", "YTM", "pct2"], ["total_return_ytd", "Return YTD", "smoney"], ["total_return_all_time", "Return total", "smoney"], ["hpr_all_time", "HPR", "spct"],
+  ],
+  disposed: [
+    ["short_name", "Security", "sec"], ["isin", "ISIN", "m"], ["holder", "Entity", "t"], ["broker", "Broker", "t"],
+    ["asset_subclass", "Type", "t"], ["currency", "Ccy", "t"], ["purchase_date", "Bought", "date"], ["maturity_date", "Exited", "date"],
+    ["current_value", "Exit value", "money"], ["total_return_ytd", "Return YTD", "smoney"], ["total_return_all_time", "Return total", "smoney"], ["hpr_all_time", "HPR", "spct"],
+  ],
+};
+function cell(p, [k, , kind]) {
+  const v = p[k];
+  if (kind === "date") return k === "maturity_date" && state.posState === "active" && !p.has_maturity ? '<span class="m">no maturity</span>' : dt(v);
+  if (kind === "sec") return `<span ${tip(`<b>${esc(p.short_name)}</b><br>ISIN ${esc(p.isin)}<br>${esc(p.asset_class)} · ${esc(p.asset_subclass)} · bought ${dt(p.purchase_date)}`)}>${esc(v)}</span>`;
+  if (kind === "money") return money(v);
+  if (kind === "pct") return pct(v);
+  if (kind === "pct2") return v == null ? '<span class="m">—</span>' : pct(v, 2);
+  if (kind === "smoney") return signed(v, money);
+  if (kind === "spct") return signed(v, (x) => pct(x));
+  return esc(v ?? "—");
+}
+function filteredPositions() {
+  const f = state.filters, qq = state.q.trim().toLowerCase();
+  return D.positions.filter((p) => p.position_state === state.posState)
+    .filter((p) => Object.entries(f).every(([k, v]) => !v || p[k] === v))
+    .filter((p) => !qq || (p.short_name + " " + p.isin).toLowerCase().includes(qq));
+}
+function sortRows(rows) {
+  const { key, desc } = state.sort;
+  return [...rows].sort((a, b) => {
+    let x = a[key], y = b[key];
+    if (key === "maturity_date" && state.posState === "active") { x = a.has_maturity ? x : "9999"; y = b.has_maturity ? y : "9999"; }
+    if (x == null) return 1; if (y == null) return -1;
+    const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+    return desc ? -c : c;
+  });
+}
+function viewPositions() {
+  const cols = COLS[state.posState];
+  const rows = sortRows(filteredPositions());
+  const all = D.positions.filter((p) => p.position_state === state.posState);
+  const opts = (k) => [...new Set(all.map((p) => p[k]))].sort();
+  const sel = (k, label) => `<select data-filter="${k}" aria-label="${label}"><option value="">All ${label.toLowerCase()}</option>${opts(k).map((o) => `<option ${state.filters[k] === o ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  const sum = (k) => rows.reduce((s, p) => s + (p[k] || 0), 0);
+  const totalRow = `<tr class="total">${cols.map(([k, , kind], i) => {
+    if (i === 0) return `<td>Total · ${rows.length}</td>`;
+    if (["current_value"].includes(k)) return `<td class="n">${money(sum(k))}</td>`;
+    if (k === "portfolio_percent") return `<td class="n">${pct(sum(k))}</td>`;
+    if (kind === "smoney") return `<td class="n">${signed(sum(k), money)}</td>`;
+    return `<td></td>`;
+  }).join("")}</tr>`;
+  const numericKinds = ["money", "pct", "pct2", "smoney", "spct"];
+  const table = `<div class="tw"><table><thead><tr>${cols.map(([k, l, kind]) => `<th class="sort ${numericKinds.includes(kind) ? "n" : ""}" data-sort="${k}" ${state.sort.key === k ? `aria-sort="${state.sort.desc ? "descending" : "ascending"}"` : ""}>${l}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((p) => `<tr>${cols.map((c) => `<td class="${numericKinds.includes(c[2]) ? "n" : "nw"} ${c[2] === "m" ? "m" : ""}">${cell(p, c)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="m">No positions match the filters.</td></tr>`}
+    ${rows.length ? totalRow : ""}</tbody></table></div>`;
+
+  const contrib = [...rows].sort((a, b) => b.total_return_ytd - a.total_return_ytd).map((p) => ({
+    label: p.short_name, value: p.total_return_ytd,
+    tip: `<b>${esc(p.short_name)}</b><br>Return YTD ${money(p.total_return_ytd)}<br><span class="tm">interest ${money(p.interest_ytd)} · revaluation ${money(p.capital_gain_ytd)}</span>` }));
+  const contribCard = contrib.length ? card("Contribution to return, year to date",
+    `<div class="legend"><span><i class="sw" style="background:var(--pos)"></i>gain</span><span><i class="sw" style="background:var(--neg)"></i>loss</span></div>${hbars(contrib)}
+     <p class="note">Hover a bar for the split into interest and revaluation; components often carry opposite signs (coupon in, price down).</p>`,
+    "Follows the filters above. Disposed positions closed before 1 January show zero.") : "";
+
+  return `<h1>Positions</h1>
+  <p class="lede">${state.posState === "active" ? "Securities held at the snapshot. Values are in USD at the snapshot FX rate; the currency column is the instrument's own currency." :
+    "Sold and matured positions. Here “value” is the amount received on exit and the date is the actual exit date: the same columns mean different things, so the two books are never summed together."}</p>
+  <section class="card"><div class="toolbar">
+    ${seg("posState", [["active", `Active · ${active().length}`], ["disposed", `Disposed · ${disposed().length}`]], state.posState)}
+    ${sel("asset_class", "Classes")}${sel("holder", "Entities")}${sel("broker", "Brokers")}
+    <input type="search" placeholder="Security or ISIN" value="${esc(state.q)}" data-search aria-label="Search">
+    <span class="spacer"></span><button class="btn" data-csv>Export CSV</button>
+  </div>${table}</section>
+  ${contribCard}`;
+}
+
+/* -------------------------------------------------------------- MATURITIES */
+function monthsBetween(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()) + (b.getDate() - a.getDate()) / 30.4; }
+function viewMaturities() {
+  const asof = ASOF(), total = M.portfolio_value_current;
+  const act = active(), dated = act.filter((p) => p.has_maturity).sort((a, b) => a.maturity_date < b.maturity_date ? -1 : 1);
+  const undated = act.filter((p) => !p.has_maturity);
+  const debtVal = dated.reduce((s, p) => s + p.current_value, 0);
+  const undVal = undated.reduce((s, p) => s + p.current_value, 0);
+  const B = [["≤ 3m", 0, 3], ["3–6m", 3, 6], ["6–12m", 6, 12], ["1–2y", 12, 24], ["2–3y", 24, 36], ["3–5y", 36, 60], ["5–7y", 60, 84], ["> 7y", 84, 1e9]];
+  const buckets = B.map(([label, lo, hi]) => {
+    const ps = dated.filter((p) => { const m = monthsBetween(asof, new Date(p.maturity_date + "T00:00:00")); return m > lo && m <= hi || (lo === 0 && m <= 0); });
+    const v = ps.reduce((s, p) => s + p.current_value, 0);
+    return { label, value: v, sub: ps.length ? `${ps.length} pos.` : "", tip: `<b>${label}</b><br>${money(v)} · ${pct(v / total)} of portfolio${ps.length ? "<br><span class='tm'>" + ps.map((p) => esc(p.short_name)).join("<br>") + "</span>" : ""}` };
+  });
+  let cum = 0;
+  const next = dated[0];
+  return `<h1>Maturities</h1>
+  <p class="lede">When the debt part of the portfolio turns back into cash. Only positions the model flags as having a real maturity date are shown: ETFs and equities carry a placeholder date in the model and are reported separately.</p>
+  <div class="grid kpis">
+    ${kpi("Debt part", money(debtVal), `${dated.length} bonds and T-bills`)}
+    ${kpi("Within 12 months", money(buckets.slice(0, 3).reduce((s, b) => s + b.value, 0)), `${pct(buckets.slice(0, 3).reduce((s, b) => s + b.value, 0) / total)} of portfolio`)}
+    ${kpi("Next maturity", next ? dt(next.maturity_date) : "—", next ? `${esc(next.short_name)} · ${moneyM(next.current_value)}` : "")}
+    ${kpi("Avg maturity", yrs(M.maturity_weighted_years), "value-weighted, debt part")}
+    ${kpi("No maturity", money(undVal), `${undated.length} ETFs and equities · ${pct(undVal / total)}`)}
+  </div>
+  ${card("Maturity profile", vbars(buckets, { height: 250 }), "Value of positions maturing in each window, counted from the snapshot date.")}
+  ${card("Maturity ladder", `<div class="tw"><table><thead><tr><th>Security</th><th>Type</th><th>Ccy</th><th>Maturity</th><th class="n">Months</th><th class="n">Value</th><th class="n">YTM</th><th class="n">Mod. duration</th><th class="n">Cumulative</th></tr></thead><tbody>
+    ${dated.map((p) => { cum += p.current_value; return `<tr><td class="nw">${esc(p.short_name)}</td><td class="nw">${esc(p.asset_subclass)}</td><td>${esc(p.currency)}</td><td class="nw">${dt(p.maturity_date)}</td>
+      <td class="n">${Math.max(0, monthsBetween(asof, new Date(p.maturity_date + "T00:00:00"))).toFixed(0)}</td><td class="n">${money(p.current_value)}</td><td class="n">${pct(p.ytm_current, 2)}</td><td class="n">${yrs(p.modified_duration)}</td><td class="n">${pct(cum / debtVal)}</td></tr>`; }).join("")}
+    </tbody></table></div><p class="note">Cumulative share is of the debt part. Duration: annual coupons, priced at the current YTM.</p>`)}`;
+}
+
+/* -------------------------------------------------------------------- RISK */
+function fmtRisk(v, unit, limit) {
+  if (v == null) return "—";
+  if (unit === "%") return pct(v, (limit ?? v) < 0.02 ? 2 : 1);
+  if (unit === "years") return yrs(v);
+  if (unit === "$") return money(v);
+  return int(v);
+}
+function viewRisk() {
+  const rows = D.risk.filter((r) => !state.riskOnlyBreaches || r.status === "BREACH");
+  const blocks = [...new Map(D.risk.map((r) => [r.block_no, r.block_name])).entries()];
+  const counts = { OK: 0, BREACH: 0, TBU: 0 };
+  D.risk.forEach((r) => counts[r.status] = (counts[r.status] || 0) + 1);
+  const util = (r) => {
+    if (r.current == null || !r.limit) return "";
+    const ratio = r.current / r.limit, w = Math.min(100, (ratio / 1.5) * 100);
+    const color = r.status === "BREACH" ? "var(--critical)" : "var(--s1)";
+    return `<div class="bar-track" ${tip(`${r.direction === "max" ? "Ceiling" : "Floor"} at the black mark · current is ${pct(ratio, 0)} of the limit`)}><div class="bar-fill" style="width:${w}%;background:${color}"></div><div class="bar-limit" style="left:calc(${100 / 1.5}% - 1px)"></div></div>`;
+  };
+  const blockCards = blocks.map(([no, name]) => {
+    const br = rows.filter((r) => r.block_no === no);
+    if (!br.length) return "";
+    return card(`${no} · ${name}`, `<div class="tw"><table class="risk"><colgroup><col style="width:44px"><col><col style="width:120px"><col style="width:110px"><col style="width:110px"><col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:110px"></colgroup><thead><tr><th>#</th><th>Check</th><th class="n">Limit</th><th class="n">Current</th><th class="n">Headroom</th><th>vs limit</th><th>Status</th><th>Severity</th><th>Source</th></tr></thead><tbody>
+      ${br.map((r) => `<tr><td class="m">${r.metric_no}</td><td>${esc(r.check)}</td>
+        <td class="n nw">${r.direction === "min" ? "≥ " : "≤ "}${fmtRisk(r.limit, r.unit, r.limit)}</td>
+        <td class="n nw">${fmtRisk(r.current, r.unit, r.limit)}</td>
+        <td class="n nw">${r.headroom == null ? '<span class="m">—</span>' : signed(r.headroom, (x) => fmtRisk(x, r.unit, r.limit))}</td>
+        <td style="width:110px">${util(r)}</td>
+        <td>${pillS(r.status === "TBU" ? "Not measured" : r.status === "OK" ? "OK" : "Breach", statusColor[r.status])}</td>
+        <td>${r.breach_severity ? pillS(r.breach_severity, sevColor[r.breach_severity]) : '<span class="m">—</span>'}</td>
+        <td><span class="src" ${tip(r.basis === "calc" ? "Derived from the position list in this snapshot. You can re-add it from the Positions screen." : "Input held in the model (ratings, cost ledger, price history): not derivable from positions alone.")}>${r.basis === "calc" ? "positions" : "model input"}</span></td></tr>`).join("")}
+      </tbody></table></div>`);
+  }).join("");
+  return `<h1>Risk limits</h1>
+  <p class="lede">Six blocks, 25 metrics. Each limit is a ceiling (≤) or a floor (≥). Headroom is the distance to the limit in the metric's own units: positive means inside, negative means breached, for both kinds. Severity is a separate judgement in the model, not a function of the size of the breach.</p>
+  <div class="grid kpis">
+    ${kpi("Within limit", counts.OK, "of 25 metrics")}
+    ${kpi("Breached", counts.BREACH, ["Critical","Moderate","Watch"].map((k) => [k, D.risk.filter((r) => r.breach_severity === k).length]).filter(([, n]) => n).map(([k, n]) => `${n} ${k.toLowerCase()}`).join(" · "))}
+    ${kpi("Not measured", counts.TBU, "data not yet in the model")}
+    ${kpi("Derived from positions", D.risk.filter((r) => r.basis === "calc").length, "re-checkable on this page")}
+    ${kpi("Model inputs", D.risk.filter((r) => r.basis !== "calc").length, "ratings, costs, drawdowns")}
+  </div>
+  <section class="card" style="padding:10px 16px"><div class="toolbar" style="margin:0">${seg("riskOnly", [["all", "All metrics"], ["breach", "Breaches only"]], state.riskOnlyBreaches ? "breach" : "all")}</div></section>
+  ${blockCards}`;
+}
+
+/* ------------------------------------------------------------- HOW IT WORKS */
+function viewHow() {
+  const passed = CHECKS.filter((c) => c.ok).length;
+  const lineage = `<div class="lineage">
+    <div class="node"><div class="tag">1 · Working model</div><div class="t">Google Sheets model</div><div class="d">Trades entered from broker confirmations; prices and FX loaded daily by a Python script from a market-data service. TWR primary, MWR by XIRR.</div></div>
+    <div class="node hl"><div class="tag">2 · Export layer</div><div class="t">Four service sheets</div><div class="d">Fixed-structure sheets built by formulas: positions, risk, snapshot header, sign-off log. This is the contract.</div></div>
+    <div class="node"><div class="tag">3 · Export file</div><div class="t">IMPORTRANGE copy</div><div class="d">Separate file that a service account can read; the model itself stays on a closed drive.</div></div>
+    <div class="node"><div class="tag">4 · Transport</div><div class="t">n8n webhook</div><div class="d">Reads the four sheets, returns one JSON. Token in a header; execution history off, since it would hold portfolio data.</div></div>
+    <div class="node hl"><div class="tag">5 · Dashboard</div><div class="t">Validate → show</div><div class="d">Normalises headers, types values, runs the checks below. Any failure withholds the data.</div></div>
+  </div><p class="note">Highlighted: the two control points. The export layer is the fixed contract between model and dashboard; validation decides whether anything is shown.</p>`;
+  const checks = `<div class="tw"><table><thead><tr><th></th><th>Check</th><th>Result on this snapshot</th><th>Why it exists</th></tr></thead><tbody>
+    ${CHECKS.map((c) => `<tr class="checkrow"><td>${c.ok ? '<span class="ok-ic">✓</span>' : '<span class="bad-ic">!</span>'}</td><td>${esc(c.t)}</td><td class="${c.ok ? "" : "r"}">${esc(c.got)}</td><td class="m">${esc(c.why)}</td></tr>`).join("")}
+  </tbody></table></div>
+  <div class="toolbar" style="margin:14px 0 0">
+    <span class="m">Simulate an export defect:</span>
+    ${Object.entries(DEFECTS).filter(([k]) => k !== "none").map(([k, d]) => `<button class="btn ${state.defect === k ? "primary" : ""}" data-defect="${k}">${d.label}</button>`).join("")}
+    ${state.defect !== "none" ? '<button class="btn" data-defect="none">Restore</button>' : ""}
+  </div>
+  <p class="note">Each button corrupts the snapshot the way a real export can break, then re-runs the checks. Switch to another tab to see the data withheld.</p>`;
+  const S = SNAPSHOT;
+  return `<h1>How it works</h1>
+  <p class="lede">The model is the single source of truth. The dashboard reads finished numbers through a fixed contract, proves the snapshot is complete, and only then shows it.</p>
+  ${card("Data lineage", lineage)}
+  ${card(`Integrity checks · ${passed} of ${CHECKS.length} passed`, checks, "Run in the browser on every load, before anything is drawn.")}
+  <div class="grid half">
+    ${card("Design rules", `<ul class="principles">
+      <li><b>No recalculation of model metrics.</b> Returns, MWR, statuses come finished; the page only sums, groups and formats. A new metric goes into the model, not into code.</li>
+      <li><b>Withhold rather than mislead.</b> Formula-built sheets can lose rows silently; a partial portfolio looks like a whole one.</li>
+      <li><b>Same column, different meaning is documented.</b> For disposed positions “value” is the exit amount and “maturity” the exit date, so the books are never summed together.</li>
+      <li><b>Placeholders are flagged, not guessed.</b> ETFs carry a dummy maturity in the model; the page trusts the <code>has_maturity</code> flag, not the presence of a date.</li>
+      <li><b>One currency, one timestamp.</b> All money is converted by the model at a stated FX date; the page has no FX rates and does no conversion.</li>
+      <li><b>Sign-off is tracked per snapshot.</b> A new price update resets the review status until someone verifies it.</li>
+    </ul>`)}
+    ${card("Normalisation", `<p class="m" style="margin-bottom:10px">The export is formula-built and arrives dirty, as real sheets do. The loader fixes it before any check:</p>
+      <dl class="defs">
+        <dt>Headers</dt><dd>${S.raw_header_issues} headers with trailing spaces, double spaces or non-breaking spaces, e.g. <code>${esc(S.raw_headers_sample[1])}</code>, <code>${esc(S.raw_headers_sample[3])}</code></dd>
+        <dt>Not-applicable markers</dt><dd><code>n/a</code>, <code>-</code>, <code>nan</code>, blank → empty value, legal where the contract allows it</dd>
+        <dt>Booleans and dates</dt><dd><code>"TRUE"</code>/<code>"FALSE"</code> strings and real booleans both accepted</dd>
+        <dt>Contract</dt><dd>Columns are found by name, never by position: an inserted column cannot shift values silently; a missing one is named in the error</dd>
+      </dl>`)}
+  </div>
+  ${card("Definitions", `<dl class="defs">
+    <dt>TWR</dt><dd>Time-weighted return, the primary measure: chains sub-period returns, removing the effect of flows. Judges the management of the portfolio, not the timing of funding.</dd>
+    <dt>MWR</dt><dd>Money-weighted return, XIRR of external cash flows; reference only. Reflects when money was added or withdrawn.</dd>
+    <dt>HPR</dt><dd>Holding-period return of a position: total return over cost basis.</dd>
+    <dt>Total return</dt><dd>Interest (coupons, dividends) + revaluation (price and FX). The two often have opposite signs.</dd>
+    <dt>YTM</dt><dd>Yield to maturity at the current price. Portfolio figure is value-weighted over the debt part.</dd>
+    <dt>Modified duration</dt><dd>Approximate % price change for a 1 pp move in yield.</dd>
+    <dt>Liquidity tiers</dt><dd>${Object.entries(TIER_LABELS).map(([k, v]) => `${k}: ${v}`).join(" · ")}</dd>
+    <dt>Headroom</dt><dd>Distance to the limit in the metric's units; positive is inside the limit for ceilings and floors alike.</dd>
+    <dt>Not measured</dt><dd>The metric is defined but its input is not yet in the model; shown grey, never as a pass.</dd>
+  </dl>`)}
+  ${card("Build", `<dl class="defs">
+    <dt>This file</dt><dd>Python generates a synthetic export with the same structure and defects as the real one, a model step computes every derived figure so that the page ties out, and the snapshot is embedded as JSON into one HTML file. Charts are hand-written SVG.</dd>
+    <dt>Production</dt><dd>Streamlit app, four screens, 400+ automated pytest tests (schema, integrity, metrics, rendering); data via the n8n webhook described above. Designed to run only behind corporate SSO.</dd>
+    <dt>AI tooling</dt><dd>Built with Claude Code as a pair: specification, contract and checks written first, code reviewed and tested against them.</dd>
+  </dl>`)}`;
+}
+
+/* ------------------------------------------------------------------ router */
+const VIEWS = { overview: viewOverview, positions: viewPositions, maturities: viewMaturities, risk: viewRisk, how: viewHow };
+function render() {
+  loadData();
+  renderFacts();
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === state.tab));
+  const v = document.getElementById("view");
+  v.innerHTML = state.tab !== "how" && !checksOk() ? blockedView() : VIEWS[state.tab]();
+  try { localStorage.setItem("tpm-tab", state.tab); } catch (e) {}
+}
+function go(tab) { state.tab = tab; render(); window.scrollTo({ top: 0 }); }
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-tab]"); if (t) return go(t.dataset.tab);
+  const g = e.target.closest("[data-go]"); if (g) return go(g.dataset.go);
+  const s = e.target.closest("[data-seg]");
+  if (s) {
+    const n = s.dataset.seg, v = s.dataset.v;
+    if (n === "dim") state.dim = v;
+    if (n === "posState") { state.posState = v; state.filters = { asset_class: "", holder: "", broker: "" }; state.sort = { key: "current_value", desc: true }; }
+    if (n === "riskOnly") state.riskOnlyBreaches = v === "breach";
+    return render();
+  }
+  const so = e.target.closest("[data-sort]");
+  if (so) { const k = so.dataset.sort; state.sort = state.sort.key === k ? { key: k, desc: !state.sort.desc } : { key: k, desc: ["current_value","portfolio_percent","total_return_ytd","total_return_all_time","hpr_all_time","ytm_current"].includes(k) }; return render(); }
+  const df = e.target.closest("[data-defect]"); if (df) { state.defect = df.dataset.defect; return render(); }
+  if (e.target.closest("[data-csv]")) return exportCsv();
+  const th = e.target.closest("[data-th]");
+  if (th) {
+    const m = th.dataset.th;
+    try { m === "auto" ? localStorage.removeItem("tpm-theme") : localStorage.setItem("tpm-theme", m); } catch (err) {}
+    if (m === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", m);
+    syncTheme();
+  }
+});
+document.addEventListener("change", (e) => { const f = e.target.closest("[data-filter]"); if (f) { state.filters[f.dataset.filter] = f.value; render(); } });
+document.addEventListener("input", (e) => {
+  if (e.target.matches("[data-search]")) {
+    state.q = e.target.value; const pos = e.target.selectionStart; render();
+    const el = document.querySelector("[data-search]"); el.focus(); el.setSelectionRange(pos, pos);
+  }
+});
+function exportCsv() {
+  const cols = COLS[state.posState], rows = sortRows(filteredPositions());
+  const lines = [cols.map((c) => c[1]).join(","), ...rows.map((p) => cols.map(([k]) => { const v = p[k] ?? ""; return typeof v === "string" && /[",]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; }).join(","))];
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `positions-${state.posState}-${M.last_updated.slice(0, 10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function syncTheme() {
+  const cur = document.documentElement.getAttribute("data-theme") || "auto";
+  document.querySelectorAll("[data-th]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.th === cur));
+}
+try { const t = localStorage.getItem("tpm-tab"); if (t && VIEWS[t]) state.tab = t; } catch (e) {}
+syncTheme();
+render();
+</script>
+</body>
+</html>

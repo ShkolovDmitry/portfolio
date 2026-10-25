@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dmitry Shkolov · FP&amp;A</title>
+<meta name="description" content="Portfolio of Dmitry Shkolov, FP&A Manager: finance reporting systems built end to end, shown on synthetic data.">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --surface-2: #f3f2ef;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #767570;
+  --ring: rgba(11,11,11,.10); --ring-strong: rgba(11,11,11,.22);
+  --accent: #2a78d6; --accent-soft: rgba(42,120,214,.10);
+  --shadow: 0 1px 2px rgba(11,11,11,.06), 0 4px 16px rgba(11,11,11,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark; --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #96958e;
+    --ring: rgba(255,255,255,.10); --ring-strong: rgba(255,255,255,.22);
+    --accent: #3987e5; --accent-soft: rgba(57,135,229,.16); --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark; --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232321;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #96958e;
+  --ring: rgba(255,255,255,.10); --ring-strong: rgba(255,255,255,.22);
+  --accent: #3987e5; --accent-soft: rgba(57,135,229,.16); --shadow: none;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--page); color: var(--text-primary); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+header { padding: 56px 0 28px; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); font-weight: 600; }
+h1 { font-size: 34px; letter-spacing: -.02em; line-height: 1.15; margin: 8px 0 10px; }
+.lede { font-size: 17px; color: var(--text-secondary); max-width: 720px; }
+.contacts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--ring-strong); border-radius: 999px; font-size: 13.5px; color: var(--text-primary); text-decoration: none; background: var(--surface-1); }
+.chip:hover { background: var(--surface-2); }
+.chip[hidden] { display: none; }
+section { padding: 22px 0; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-secondary); margin-bottom: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card h3 { font-size: 16px; margin-bottom: 6px; }
+.card p { color: var(--text-secondary); font-size: 14px; }
+.case { display: flex; flex-direction: column; gap: 12px; }
+.case .tag { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.case h3 { font-size: 21px; letter-spacing: -.01em; margin: 0; }
+.case dl { display: grid; grid-template-columns: 96px minmax(0,1fr); gap: 6px 12px; font-size: 14px; }
+.case dt { color: var(--text-muted); }
+.case dd { color: var(--text-secondary); }
+.case ul { padding-left: 18px; color: var(--text-secondary); font-size: 14px; display: grid; gap: 4px; }
+.case .try { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; color: var(--text-primary); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: 8px; background: var(--text-primary); color: var(--surface-1); text-decoration: none; font-size: 14px; font-weight: 600; align-self: flex-start; }
+.btn:hover { opacity: .88; }
+.spacer { flex: 1; }
+.note { font-size: 13px; color: var(--text-muted); }
+footer { border-top: 1px solid var(--ring); margin-top: 28px; padding: 20px 0 36px; font-size: 13px; color: var(--text-muted); }
+@media (max-width: 860px) { .grid3, .grid2 { grid-template-columns: minmax(0,1fr); } h1 { font-size: 28px; } header { padding-top: 36px; } }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="eyebrow">Portfolio · finance systems</div>
+  <h1>Dmitry Shkolov</h1>
+  <p class="lede">FP&amp;A Manager with 9+ years in management reporting, consolidation, forecasting and valuation, currently at a Nasdaq-listed holding group in Cyprus. I combine finance judgement with building the reporting infrastructure myself: models, data contracts, automation and the dashboards on top.</p>
+  <div class="contacts">
+    <a class="chip" href="mailto:shkolovdima@gmail.com">shkolovdima@gmail.com</a>
+    <a class="chip" id="linkedin" href="__LINKEDIN__" target="_blank" rel="noopener">LinkedIn</a>
+    <span class="chip">Limassol, Cyprus</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>Two working cases</h2>
+    <div class="grid2">
+      <article class="card case">
+        <div class="tag">Treasury · investment portfolio</div>
+        <h3>Treasury Portfolio Monitor</h3>
+        <dl>
+          <dt>Problem</dt><dd>A securities portfolio of a holding group reviewed by finance and management daily, with performance and investment-policy limits checked by hand.</dd>
+          <dt>Built</dt><dd>Model in Google Sheets as the single source of truth, a fixed export contract, transport through an n8n webhook, and a dashboard that validates the snapshot before showing it.</dd>
+        </dl>
+        <ul>
+          <li>Value, TWR and MWR, return split into interest and revaluation</li>
+          <li>Positions, maturity ladder, yield and duration</li>
+          <li>25 investment-policy limits with headroom and severity</li>
+          <li>10 integrity checks; data is withheld if any fails</li>
+        </ul>
+        <div class="try"><b>Try:</b> open “How it works” and press “Export formula lost one row”, then go back to Overview.</div>
+        <div class="spacer"></div>
+        <a class="btn" href="treasury-portfolio-monitor.html">Open the dashboard →</a>
+      </article>
+      <article class="card case">
+        <div class="tag">FP&amp;A · group reporting</div>
+        <h3>Group Management Report</h3>
+        <dl>
+          <dt>Problem</dt><dd>A five-entity financial group in four currencies with books in 1C, budget and KPIs in spreadsheets, and a month-end pack assembled manually.</dd>
+          <dt>Built</dt><dd>An engine that reads 1C trial balances, maps accounts, translates under IAS 21, eliminates intragroup items and produces three linked statements, budget variance, forecast and business-unit view.</dd>
+        </dl>
+        <ul>
+          <li>P&amp;L vs budget and prior year, EBITDA bridge with FX isolated</li>
+          <li>Consolidating balance sheet and indirect cash flow</li>
+          <li>Business-unit contribution and transfer pricing (cost plus)</li>
+          <li>Rolling 9+3 forecast from drivers; data cube for ad hoc questions</li>
+          <li>15 reconciliation checks across the three statements</li>
+        </ul>
+        <div class="try"><b>Try:</b> P&amp;L → switch scope to one entity; Business units → move the mark-up slider; Data &amp; checks → raw 1C export vs mapped.</div>
+        <div class="spacer"></div>
+        <a class="btn" href="group-management-report.html">Open the report →</a>
+      </article>
+    </div>
+    <p class="note" style="margin-top:12px">All data in both cases is synthetic: names and figures are invented. Structure, logic and controls are those of real reporting.</p>
+  </section>
+
+  <section>
+    <h2>How I build</h2>
+    <div class="grid3">
+      <div class="card"><h3>Contract first</h3><p>The model stays the single source of truth. Reports read a fixed export layer with named columns and closed lists, so a change in the model cannot silently shift a number.</p></div>
+      <div class="card"><h3>Prove, then publish</h3><p>Every pack checks itself before anyone sees it: trial balances balance, statements tie, intercompany nets to zero, counts match. A failed check stops the report.</p></div>
+      <div class="card"><h3>AI as a pair, not a black box</h3><p>I write the specification, data contract and checks; code is produced with Claude Code and accepted only when it passes them. This keeps delivery fast and the logic mine.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Background</h2>
+    <div class="grid3">
+      <div class="card"><h3>Experience</h3><p>FP&amp;A in a Nasdaq-listed gaming group (consolidation, planning, portfolio monitoring, board reporting); FP&amp;A Manager in the real-estate division of a major retailer; earlier finance roles since 2016.</p></div>
+      <div class="card"><h3>Selected work</h3><p>Automated recurring management reporting and bank-statement processing (n8n, AI-assisted tooling); rebuilt management reporting into a formula-linked system across entities; built portfolio performance and risk-limit dashboards; built the business case for changing an FX provider.</p></div>
+      <div class="card"><h3>Education</h3><p>MSc Business Valuation &amp; Corporate Finance; CIMA Advanced Diploma in Management Accounting; passed CFA Level I.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">Dmitry Shkolov · Each report is a single HTML file and works offline. Built with Python and plain JavaScript.</div></footer>
+<script>
+  const li = document.getElementById("linkedin");
+  if (li.getAttribute("href").startsWith("__")) li.hidden = true;
+</script>
+</body>
+</html>
